@@ -51,37 +51,38 @@ export function useRoom(roomId: string): UseRoomReturn {
   }, [roomId]);
 
   const fetchMembers = useCallback(async () => {
-    const { data, error: fetchError } = await supabase
+    const { data: memberRows, error: memberError } = await supabase
       .from('room_members')
-      .select(`
-        room_id,
-        user_id,
-        role,
-        joined_at,
-        profiles:user_id (
-          display_name,
-          avatar_url
-        )
-      `)
+      .select('room_id, user_id, role, joined_at')
       .eq('room_id', roomId);
 
-    if (fetchError) {
-      setError(fetchError.message);
+    if (memberError) {
+      setError(memberError.message);
       return;
     }
 
-    const mapped: RoomMember[] = (data ?? []).map((row: Record<string, unknown>) => ({
-      room_id: row.room_id as string,
-      user_id: row.user_id as string,
-      role: row.role as 'creator' | 'member',
-      joined_at: row.joined_at as string,
-      profile: row.profiles
-        ? {
-            display_name: (row.profiles as Record<string, unknown>).display_name as string,
-            avatar_url: (row.profiles as Record<string, unknown>).avatar_url as string | null,
-          }
-        : undefined,
-    }));
+    const userIds = (memberRows ?? []).map((r: Record<string, unknown>) => r.user_id as string);
+
+    const { data: profiles } = userIds.length
+      ? await supabase.from('profiles').select('id, display_name, avatar_url').in('id', userIds)
+      : { data: [] };
+
+    const profileMap = new Map(
+      (profiles ?? []).map((p: Record<string, unknown>) => [p.id as string, p]),
+    );
+
+    const mapped: RoomMember[] = (memberRows ?? []).map((row: Record<string, unknown>) => {
+      const profile = profileMap.get(row.user_id as string) as Record<string, unknown> | undefined;
+      return {
+        room_id: row.room_id as string,
+        user_id: row.user_id as string,
+        role: row.role as 'creator' | 'member',
+        joined_at: row.joined_at as string,
+        profile: profile
+          ? { display_name: profile.display_name as string, avatar_url: profile.avatar_url as string | null }
+          : undefined,
+      };
+    });
 
     setMembers(mapped);
   }, [roomId]);

@@ -22,7 +22,7 @@ export default function App() {
           <Route path="/join/:code" element={<ProtectedRoute><JoinRoom /></ProtectedRoute>} />
         </Routes>
 
-        <div className="fixed bottom-2 right-3">
+        <div className="fixed bottom-2 right-3 z-50">
           <VersionStamp />
         </div>
       </div>
