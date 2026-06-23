@@ -1,25 +1,15 @@
--- Rooms
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
+
+-- Tables
 CREATE TABLE public.rooms (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
-  invite_code TEXT UNIQUE NOT NULL DEFAULT encode(gen_random_bytes(4), 'hex'),
+  invite_code TEXT UNIQUE NOT NULL DEFAULT encode(extensions.gen_random_bytes(4), 'hex'),
   created_by UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   max_members INTEGER NOT NULL DEFAULT 3,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rooms REPLICA IDENTITY FULL;
-
-CREATE POLICY "Room members can read rooms"
-  ON public.rooms FOR SELECT
-  USING (id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
-
-CREATE POLICY "Authenticated users can create rooms"
-  ON public.rooms FOR INSERT
-  WITH CHECK (auth.uid() = created_by);
-
--- Room Members
 CREATE TABLE public.room_members (
   room_id UUID NOT NULL REFERENCES public.rooms(id) ON DELETE CASCADE,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -28,22 +18,6 @@ CREATE TABLE public.room_members (
   PRIMARY KEY (room_id, user_id)
 );
 
-ALTER TABLE public.room_members ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.room_members REPLICA IDENTITY FULL;
-
-CREATE POLICY "Room members can see members"
-  ON public.room_members FOR SELECT
-  USING (room_id IN (SELECT rm.room_id FROM public.room_members rm WHERE rm.user_id = auth.uid()));
-
-CREATE POLICY "Users can join rooms"
-  ON public.room_members FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can leave rooms"
-  ON public.room_members FOR DELETE
-  USING (auth.uid() = user_id);
-
--- Rounds
 CREATE TYPE public.round_status AS ENUM ('collecting', 'processing', 'complete');
 
 CREATE TABLE public.rounds (
@@ -56,22 +30,6 @@ CREATE TABLE public.rounds (
   UNIQUE (room_id, round_number)
 );
 
-ALTER TABLE public.rounds ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.rounds REPLICA IDENTITY FULL;
-
-CREATE POLICY "Room members can see rounds"
-  ON public.rounds FOR SELECT
-  USING (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
-
-CREATE POLICY "Room members can create rounds"
-  ON public.rounds FOR INSERT
-  WITH CHECK (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
-
-CREATE POLICY "Room members can update rounds"
-  ON public.rounds FOR UPDATE
-  USING (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
-
--- Submissions
 CREATE TABLE public.submissions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   round_id UUID NOT NULL REFERENCES public.rounds(id) ON DELETE CASCADE,
@@ -81,24 +39,6 @@ CREATE TABLE public.submissions (
   UNIQUE (round_id, user_id)
 );
 
-ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.submissions REPLICA IDENTITY FULL;
-
-CREATE POLICY "Users can submit"
-  ON public.submissions FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Room members can see submissions"
-  ON public.submissions FOR SELECT
-  USING (
-    round_id IN (
-      SELECT r.id FROM public.rounds r
-      JOIN public.room_members rm ON rm.room_id = r.room_id
-      WHERE rm.user_id = auth.uid()
-    )
-  );
-
--- Messages
 CREATE TYPE public.message_type AS ENUM ('system', 'ai_response', 'user_chat');
 
 CREATE TABLE public.messages (
@@ -115,9 +55,69 @@ CREATE TABLE public.messages (
 CREATE INDEX idx_messages_room_id ON public.messages(room_id);
 CREATE INDEX idx_messages_round_id ON public.messages(round_id) WHERE round_id IS NOT NULL;
 
+-- RLS + Replica Identity
+ALTER TABLE public.rooms ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rooms REPLICA IDENTITY FULL;
+ALTER TABLE public.room_members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.room_members REPLICA IDENTITY FULL;
+ALTER TABLE public.rounds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.rounds REPLICA IDENTITY FULL;
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.submissions REPLICA IDENTITY FULL;
 ALTER TABLE public.messages ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.messages REPLICA IDENTITY FULL;
 
+-- Policies: rooms
+CREATE POLICY "Room members can read rooms"
+  ON public.rooms FOR SELECT
+  USING (id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Authenticated users can create rooms"
+  ON public.rooms FOR INSERT
+  WITH CHECK (auth.uid() = created_by);
+
+-- Policies: room_members
+CREATE POLICY "Room members can see members"
+  ON public.room_members FOR SELECT
+  USING (room_id IN (SELECT rm.room_id FROM public.room_members rm WHERE rm.user_id = auth.uid()));
+
+CREATE POLICY "Users can join rooms"
+  ON public.room_members FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can leave rooms"
+  ON public.room_members FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- Policies: rounds
+CREATE POLICY "Room members can see rounds"
+  ON public.rounds FOR SELECT
+  USING (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Room members can create rounds"
+  ON public.rounds FOR INSERT
+  WITH CHECK (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Room members can update rounds"
+  ON public.rounds FOR UPDATE
+  USING (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
+
+-- Policies: submissions
+CREATE POLICY "Users can submit"
+  ON public.submissions FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Room members can see submissions"
+  ON public.submissions FOR SELECT
+  USING (
+    round_id IN (
+      SELECT r.id FROM public.rounds r
+      JOIN public.room_members rm ON rm.room_id = r.room_id
+      WHERE rm.user_id = auth.uid()
+    )
+  );
+
+-- Policies: messages
 CREATE POLICY "Room members can see messages"
   ON public.messages FOR SELECT
   USING (room_id IN (SELECT room_id FROM public.room_members WHERE user_id = auth.uid()));
