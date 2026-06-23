@@ -7,7 +7,7 @@ export function VersionStamp() {
   });
 
   return (
-    <span className="text-xs text-zinc-600">
+    <span className="text-xs text-zinc-500">
       v{__APP_VERSION__} · {buildDate}
     </span>
   );
