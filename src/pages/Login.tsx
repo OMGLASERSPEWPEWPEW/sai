@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Loader2, User } from 'lucide-react';
+import { VersionStamp } from '../components/VersionStamp';
 
 export default function Login() {
   const navigate = useNavigate();
@@ -72,6 +73,10 @@ export default function Login() {
             )}
           </button>
         </form>
+
+        <div className="mt-8 text-center">
+          <VersionStamp />
+        </div>
       </div>
     </div>
   );
