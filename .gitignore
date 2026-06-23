@@ -8,3 +8,5 @@ dist/
 .claude/memory/
 .claude/standups/
 *.log
+.vercel/
+supabase/.temp/
