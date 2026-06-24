@@ -22,6 +22,15 @@ Multi-user PWA where 3 participants join a shared room, submit ideas per round, 
 - `supabase db push` -- push migrations
 - `supabase functions deploy` -- deploy Edge Functions
 
+## Commit & Push Protocol
+
+Every `/c&p` must bump the version before committing:
+1. `npm version patch --no-git-tag-version` -- bumps package.json version
+2. Stage `package.json` alongside other changes
+3. Commit and push
+
+This ensures `__APP_VERSION__` (injected by Vite) and the service worker cache name (injected at build time) update on every deploy.
+
 ## Key Files
 
 - `src/pages/Room.tsx` -- Main room experience (chat + ready lights + submission)
