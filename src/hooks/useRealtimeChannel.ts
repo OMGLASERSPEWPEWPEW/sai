@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
-import type { RealtimeChannel as _RealtimeChannel } from '@supabase/supabase-js';
+import type { RealtimeChannel } from '@supabase/supabase-js';
 
-export type { _RealtimeChannel as RealtimeChannel };
+export type { RealtimeChannel };
 
 export type ConnectionState = 'connected' | 'connecting' | 'disconnected';
 
@@ -32,7 +32,7 @@ export function useRealtimeChannel({
 
     const channel = setup(
       supabase.channel(channelName),
-    ).subscribe((status) => {
+    ).subscribe((status: string) => {
       if (status === 'SUBSCRIBED') {
         hasConnected.current = true;
         setConnectionState('connected');
