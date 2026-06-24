@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRealtimeChannel, type RealtimeChannel } from './useRealtimeChannel';
+import { enqueueSubmission, flushOfflineQueue } from '../lib/offline-queue';
 
 export interface Submission {
   id: string;
@@ -43,12 +45,11 @@ export function useSubmissions(roundId: string | null): UseSubmissionsReturn {
 
   useEffect(() => {
     fetchSubmissions();
+  }, [fetchSubmissions]);
 
-    if (!roundId) return;
-
-    const channel = supabase
-      .channel(`submissions:${roundId}`)
-      .on(
+  const setup = useCallback(
+    (channel: RealtimeChannel) =>
+      channel.on(
         'postgres_changes',
         {
           event: '*',
@@ -56,16 +57,33 @@ export function useSubmissions(roundId: string | null): UseSubmissionsReturn {
           table: 'submissions',
           filter: `round_id=eq.${roundId}`,
         },
-        () => {
-          fetchSubmissions();
-        }
-      )
-      .subscribe();
+        () => { fetchSubmissions(); }
+      ),
+    [roundId, fetchSubmissions]
+  );
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [roundId, fetchSubmissions]);
+  const flushQueue = useCallback(async () => {
+    await flushOfflineQueue(async (qRoundId, content) => {
+      try {
+        const { error } = await supabase.from('submissions').insert({
+          round_id: qRoundId,
+          user_id: user?.id,
+          content,
+        });
+        return !error;
+      } catch {
+        return false;
+      }
+    });
+    fetchSubmissions();
+  }, [user, fetchSubmissions]);
+
+  useRealtimeChannel({
+    channelName: `submissions:${roundId}`,
+    enabled: !!roundId,
+    setup,
+    onConnected: flushQueue,
+  });
 
   const hasSubmitted = user
     ? submissions.some((s) => s.user_id === user.id)
@@ -86,6 +104,7 @@ export function useSubmissions(roundId: string | null): UseSubmissionsReturn {
           });
 
         if (insertError) {
+          enqueueSubmission(roundId, content);
           throw new Error(insertError.message);
         }
 

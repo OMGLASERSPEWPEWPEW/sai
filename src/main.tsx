@@ -5,9 +5,11 @@ import App from './App';
 import './index.css';
 import { setSupabaseClient } from './lib/gateway';
 import { supabase } from './lib/supabase';
+import { initMetricsStore } from './lib/metrics-store';
 
 // Wire Supabase client into the AI gateway before anything renders
 setSupabaseClient(supabase);
+initMetricsStore();
 
 // Register service worker for PWA + push notifications
 if ('serviceWorker' in navigator) {

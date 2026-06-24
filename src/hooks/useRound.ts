@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeChannel, type RealtimeChannel } from './useRealtimeChannel';
 
 export interface Round {
   id: string;
@@ -48,10 +49,12 @@ export function useRound(roomId: string): UseRoundReturn {
     }
 
     load();
+    return () => { mounted = false; };
+  }, [fetchCurrentRound]);
 
-    const channel = supabase
-      .channel(`rounds:${roomId}`)
-      .on(
+  const setup = useCallback(
+    (channel: RealtimeChannel) =>
+      channel.on(
         'postgres_changes',
         {
           event: '*',
@@ -59,17 +62,17 @@ export function useRound(roomId: string): UseRoundReturn {
           table: 'rounds',
           filter: `room_id=eq.${roomId}`,
         },
-        () => {
-          fetchCurrentRound();
-        }
-      )
-      .subscribe();
+        () => { fetchCurrentRound(); }
+      ),
+    [roomId, fetchCurrentRound]
+  );
 
-    return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, [roomId, fetchCurrentRound]);
+  useRealtimeChannel({
+    channelName: `rounds:${roomId}`,
+    enabled: true,
+    setup,
+    onConnected: fetchCurrentRound,
+  });
 
   const startNewRound = useCallback(async () => {
     const { data: latest } = await supabase

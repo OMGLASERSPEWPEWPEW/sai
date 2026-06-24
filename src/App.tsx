@@ -2,6 +2,8 @@ import { Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import { VersionStamp } from './components/VersionStamp';
+import { useServiceWorker } from './hooks/useServiceWorker';
+import { usePushNotifications } from './hooks/usePushNotifications';
 import Login from './pages/Login';
 import { Home } from './pages/Home';
 import { Room } from './pages/Room';
@@ -9,6 +11,9 @@ import { CreateRoom } from './pages/CreateRoom';
 import { JoinRoom } from './pages/JoinRoom';
 
 export default function App() {
+  useServiceWorker();
+  usePushNotifications(true);
+
   return (
     <AuthProvider>
       <div className="min-h-screen bg-zinc-950 text-zinc-100">

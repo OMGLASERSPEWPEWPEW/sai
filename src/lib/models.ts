@@ -152,7 +152,7 @@ export const MODELS: Record<string, ModelDef> = {
 
 export interface FeatureModelConfig {
   primary: string;
-  fallback?: string;
+  fallback?: string | string[];
 }
 
 /**
@@ -160,7 +160,7 @@ export interface FeatureModelConfig {
  * which model a feature uses -- no other code changes needed.
  */
 export const MODEL_REGISTRY: Record<string, FeatureModelConfig> = {
-  'mindshare-combine': { primary: 'claude-sonnet-4-5', fallback: 'gemini-2.0-flash' },
+  'mindshare-combine': { primary: 'claude-sonnet-4-5', fallback: ['gemini-2.0-flash', 'gpt-4o-mini'] },
 };
 
 // ---------------------------------------------------------------------------
@@ -180,8 +180,11 @@ export function getModelForFeature(feature: string): ModelDef {
   return modelDef;
 }
 
-export function getFallbackModelForFeature(feature: string): ModelDef | undefined {
+export function getFallbackModelsForFeature(feature: string): ModelDef[] {
   const config = MODEL_REGISTRY[feature];
-  if (!config?.fallback) return undefined;
-  return MODELS[config.fallback];
+  if (!config?.fallback) return [];
+  const fallbacks = Array.isArray(config.fallback) ? config.fallback : [config.fallback];
+  return fallbacks
+    .map((key) => MODELS[key])
+    .filter((m): m is ModelDef => !!m);
 }

@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useRealtimeChannel, type RealtimeChannel } from './useRealtimeChannel';
 
 export interface Room {
   id: string;
@@ -53,7 +54,7 @@ export function useRoom(roomId: string): UseRoomReturn {
   const fetchMembers = useCallback(async () => {
     const { data: memberRows, error: memberError } = await supabase
       .from('room_members')
-      .select('room_id, user_id, role, joined_at')
+      .select('*')
       .eq('room_id', roomId);
 
     if (memberError) {
@@ -98,10 +99,12 @@ export function useRoom(roomId: string): UseRoomReturn {
     }
 
     load();
+    return () => { mounted = false; };
+  }, [fetchRoom, fetchMembers]);
 
-    const channel = supabase
-      .channel(`room_members:${roomId}`)
-      .on(
+  const setup = useCallback(
+    (channel: RealtimeChannel) =>
+      channel.on(
         'postgres_changes',
         {
           event: '*',
@@ -109,17 +112,17 @@ export function useRoom(roomId: string): UseRoomReturn {
           table: 'room_members',
           filter: `room_id=eq.${roomId}`,
         },
-        () => {
-          fetchMembers();
-        }
-      )
-      .subscribe();
+        () => { fetchMembers(); }
+      ),
+    [roomId, fetchMembers]
+  );
 
-    return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, [roomId, fetchRoom, fetchMembers]);
+  useRealtimeChannel({
+    channelName: `room_members:${roomId}`,
+    enabled: true,
+    setup,
+    onConnected: fetchMembers,
+  });
 
   const isFull = room ? members.length >= room.max_members : false;
 

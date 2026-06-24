@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { useRealtimeChannel, type ConnectionState, type RealtimeChannel } from './useRealtimeChannel';
 
 export interface Message {
   id: string;
@@ -17,6 +18,7 @@ interface UseChatReturn {
   messages: Message[];
   sendChatMessage: (content: string) => Promise<void>;
   isLoading: boolean;
+  connectionState: ConnectionState;
 }
 
 export function useChat(roomId: string): UseChatReturn {
@@ -49,10 +51,12 @@ export function useChat(roomId: string): UseChatReturn {
     }
 
     load();
+    return () => { mounted = false; };
+  }, [fetchMessages]);
 
-    const channel = supabase
-      .channel(`messages:${roomId}`)
-      .on(
+  const setup = useCallback(
+    (channel: RealtimeChannel) =>
+      channel.on(
         'postgres_changes',
         {
           event: '*',
@@ -60,17 +64,17 @@ export function useChat(roomId: string): UseChatReturn {
           table: 'messages',
           filter: `room_id=eq.${roomId}`,
         },
-        () => {
-          fetchMessages();
-        }
-      )
-      .subscribe();
+        () => { fetchMessages(); }
+      ),
+    [roomId, fetchMessages]
+  );
 
-    return () => {
-      mounted = false;
-      supabase.removeChannel(channel);
-    };
-  }, [roomId, fetchMessages]);
+  const { connectionState } = useRealtimeChannel({
+    channelName: `messages:${roomId}`,
+    enabled: true,
+    setup,
+    onConnected: fetchMessages,
+  });
 
   const sendChatMessage = useCallback(
     async (content: string) => {
@@ -91,5 +95,5 @@ export function useChat(roomId: string): UseChatReturn {
     [roomId, user]
   );
 
-  return { messages, sendChatMessage, isLoading };
+  return { messages, sendChatMessage, isLoading, connectionState };
 }

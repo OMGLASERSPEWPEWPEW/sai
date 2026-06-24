@@ -1,4 +1,5 @@
-const CACHE_NAME = 'mindshare-v1';
+// __SW_VERSION__ is injected at build time by the Vite plugin
+const CACHE_NAME = 'mindshare-__SW_VERSION__';
 const APP_SHELL = ['/', '/index.html'];
 
 // Install: pre-cache the app shell
@@ -33,7 +34,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // Only cache successful GET responses
           if (request.method === 'GET' && response.ok) {
             const clone = response.clone();
             caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
@@ -50,7 +50,6 @@ self.addEventListener('fetch', (event) => {
     caches.match(request).then((cached) => {
       if (cached) return cached;
       return fetch(request).then((response) => {
-        // Cache successful GET responses for static assets
         if (request.method === 'GET' && response.ok) {
           const clone = response.clone();
           caches.open(CACHE_NAME).then((cache) => cache.put(request, clone));
@@ -92,13 +91,11 @@ self.addEventListener('notificationclick', (event) => {
     self.clients
       .matchAll({ type: 'window', includeUncontrolled: true })
       .then((clients) => {
-        // Focus an existing tab if one matches
         for (const client of clients) {
           if (client.url.includes(targetUrl) && 'focus' in client) {
             return client.focus();
           }
         }
-        // Otherwise open a new window
         return self.clients.openWindow(targetUrl);
       }),
   );

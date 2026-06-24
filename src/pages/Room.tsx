@@ -6,10 +6,12 @@ import { useRound } from '../hooks/useRound';
 import { useSubmissions } from '../hooks/useSubmissions';
 import { useReadyLights } from '../hooks/useReadyLights';
 import { useChat } from '../hooks/useChat';
+import { useReactions } from '../hooks/useReactions';
 import { RoomHeader } from '../components/RoomHeader';
 import { ChatView } from '../components/ChatView';
 import { ReadyLights } from '../components/ReadyLights';
 import { SubmissionInput } from '../components/SubmissionInput';
+import ConnectionBanner from '../components/ConnectionBanner';
 
 export function Room() {
   const { id: roomId } = useParams<{ id: string }>();
@@ -37,7 +39,10 @@ export function Room() {
   const {
     messages,
     isLoading: chatLoading,
+    connectionState,
   } = useChat(roomId!);
+
+  const { toggleReaction, getReactionsForMessage } = useReactions(roomId!);
 
   function handleLeave() {
     navigate('/');
@@ -72,8 +77,14 @@ export function Room() {
   return (
     <div className="flex h-screen flex-col bg-zinc-950">
       <RoomHeader room={room} members={members} onLeave={handleLeave} />
+      <ConnectionBanner state={connectionState} />
 
-      <ChatView messages={messages} currentUserId={user?.id ?? ''} />
+      <ChatView
+        messages={messages}
+        currentUserId={user?.id ?? ''}
+        getReactionsForMessage={getReactionsForMessage}
+        onToggleReaction={toggleReaction}
+      />
 
       {showReadyLights && <ReadyLights lights={lights} />}
 
